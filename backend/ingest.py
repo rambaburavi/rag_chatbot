@@ -5,38 +5,55 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 
+
 DOCUMENTS_PATH = "documents"
 CHROMA_DB_PATH = "chroma_db"
 
-documents = []
 
-for file in os.listdir(DOCUMENTS_PATH):
-    if file.endswith(".pdf"):
-        pdf_path = os.path.join(DOCUMENTS_PATH, file)
+def ingest_documents():
 
-        loader = PyPDFLoader(pdf_path)
-        docs = loader.load()
+    documents = []
 
-        documents.extend(docs)
+    # Load PDFs
+    for file in os.listdir(DOCUMENTS_PATH):
 
-print(f"Loaded {len(documents)} pages from PDFs")
+        if file.endswith(".pdf"):
 
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=500,
-    chunk_overlap=50
-)
+            pdf_path = os.path.join(DOCUMENTS_PATH, file)
 
-chunks = text_splitter.split_documents(documents)
+            loader = PyPDFLoader(pdf_path)
 
-print(f"Created {len(chunks)} chunks")
+            docs = loader.load()
 
-embedding_model = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
-vector_store = Chroma.from_documents(
-    documents=chunks,
-    embedding=embedding_model,
-    persist_directory=CHROMA_DB_PATH
-)
+            documents.extend(docs)
 
-print("Embeddings stored successfully in ChromaDB")
+    print(f"Loaded {len(documents)} pages from PDFs")
+
+    # Split text
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=500,
+        chunk_overlap=50
+    )
+
+    chunks = text_splitter.split_documents(documents)
+
+    print(f"Created {len(chunks)} chunks")
+
+    # Embeddings
+    embedding_model = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
+    )
+
+    # Store in Chroma
+    Chroma.from_documents(
+        documents=chunks,
+        embedding=embedding_model,
+        persist_directory=CHROMA_DB_PATH
+    )
+
+    print("Embeddings stored successfully in ChromaDB")
+
+
+if __name__ == "__main__":
+
+    ingest_documents()

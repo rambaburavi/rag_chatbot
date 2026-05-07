@@ -1,43 +1,57 @@
-import ollama
+import os
+
+from dotenv import load_dotenv
+
+from groq import Groq
 
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
 
 
-# Load embedding model
+# Load environment variables
+load_dotenv()
+
+# Groq client
+client = Groq(
+    api_key=os.getenv("GROQ_API_KEY")
+)
+
+# Embedding model
 embedding_model = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
 )
 
-# Load ChromaDB
+# ChromaDB
 vector_store = Chroma(
     persist_directory="chroma_db",
     embedding_function=embedding_model
 )
 
 
-# Retrieve relevant chunks
+# Retrieve documents
 def retrieve_documents(query):
 
-    results = vector_store.similarity_search(query, k=3)
+    results = vector_store.similarity_search(query, k=2)
 
     return results
 
 
-# Generate final answer
+# Generate answer
 def generate_answer(query):
 
     docs = retrieve_documents(query)
 
-    # Combine retrieved chunks
-    context = "\n\n".join([doc.page_content for doc in docs])
+    context = "\n\n".join([
+        doc.page_content for doc in docs
+    ])
 
-    # Extract source documents
-    sources = list(set([doc.metadata["source"] for doc in docs]))
+    sources = list(set([
+        doc.metadata["source"].split("\\")[-1]
+        for doc in docs
+    ]))
 
-    # Prompt for the LLM
     prompt = f"""
-You are an AI assistant for SWS AI company employees.
+You are an AI assistant for SWS AI employees.
 
 Answer ONLY from the provided context.
 
@@ -51,33 +65,23 @@ Question:
 {query}
 """
 
-    # Call local Mistral model via Ollama
-    response = ollama.chat(
-        model="phi3:mini",
+    completion = client.chat.completions.create(
+
+        model="llama-3.1-8b-instant",
+
         messages=[
             {
                 "role": "user",
                 "content": prompt
             }
-        ]
+        ],
+
+        temperature=0.2
     )
 
+    answer = completion.choices[0].message.content
+
     return {
-        "answer": response["message"]["content"],
+        "answer": answer,
         "sources": sources
     }
-
-
-# Test Query
-query = "What is the leave policy?"
-
-result = generate_answer(query)
-
-print("\n========== FINAL ANSWER ==========\n")
-
-print(result["answer"])
-
-print("\n========== SOURCES ==========\n")
-
-for source in result["sources"]:
-    print(source)
